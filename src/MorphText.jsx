@@ -30,6 +30,7 @@ export default function MorphText({
   t = 0,
   seed = 1,
   fontFamily = 'Oswald, sans-serif',
+  svgRef,
 }) {
   const rawId = useId().replace(/:/g, '')
   const filterId = `morph-${rawId}`
@@ -59,6 +60,7 @@ export default function MorphText({
 
   return (
     <svg
+      ref={svgRef}
       className="morph-svg"
       viewBox="0 0 1000 320"
       preserveAspectRatio="xMidYMid meet"

@@ -21,6 +21,14 @@ It's pure SVG filters on a single `<text>` element (`src/MorphText.jsx`):
 Every parameter is interpolated from one slider value, so the morph is smooth
 and fully reversible. A *randomize spikes* button reseeds the noise.
 
+## Share & export
+
+- **Share link** — the full morph state (text, brutality, seed, font) is encoded
+  in the URL hash, so any configuration is reproducible from a link. The *share
+  link* button copies the current URL to your clipboard.
+- **Export SVG** — the *export SVG* button downloads the rendered wordmark as a
+  self-contained `.svg` file.
+
 ## Develop
 
 Requires Node 18+.

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import MorphText from './MorphText.jsx'
+import { downloadSvg, readStateFromHash, writeStateToHash } from './share.js'
 
 const FONTS = [
   { label: 'Oswald', value: 'Oswald, sans-serif' },
@@ -8,13 +9,32 @@ const FONTS = [
   { label: 'Inter', value: '"Inter", sans-serif' },
 ]
 
+const initial = readStateFromHash() || {}
+
 export default function App() {
-  const [text, setText] = useState('RAVA LABS')
-  const [brutality, setBrutality] = useState(0) // 0..100 -> drives the morph
-  const [seed, setSeed] = useState(7)
-  const [font, setFont] = useState(FONTS[0].value)
+  const [text, setText] = useState(initial.text ?? 'RAVA LABS')
+  const [brutality, setBrutality] = useState(initial.brutality ?? 0) // 0..100 -> drives the morph
+  const [seed, setSeed] = useState(initial.seed ?? 7)
+  const [font, setFont] = useState(initial.font ?? FONTS[0].value)
+  const [copied, setCopied] = useState(false)
+  const svgRef = useRef(null)
 
   const t = brutality / 100
+
+  // Keep the URL hash in sync so the current morph is always shareable.
+  useEffect(() => {
+    writeStateToHash({ text, brutality, seed, font })
+  }, [text, brutality, seed, font])
+
+  async function copyShareLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1600)
+    } catch {
+      // Clipboard may be unavailable (e.g. insecure context); ignore silently.
+    }
+  }
 
   return (
     <div className="app">
@@ -24,7 +44,7 @@ export default function App() {
       </header>
 
       <main className="stage">
-        <MorphText text={text || ' '} t={t} seed={seed} fontFamily={font} />
+        <MorphText text={text || ' '} t={t} seed={seed} fontFamily={font} svgRef={svgRef} />
       </main>
 
       <section className="panel">
@@ -65,9 +85,20 @@ export default function App() {
             </select>
           </label>
 
-          <button className="ghost" onClick={() => setSeed((s) => (s % 9999) + 1)}>
-            ⤫ randomize spikes
-          </button>
+          <div className="actions">
+            <button className="ghost" onClick={() => setSeed((s) => (s % 9999) + 1)}>
+              ⤫ randomize spikes
+            </button>
+            <button className="ghost" onClick={copyShareLink}>
+              {copied ? '✓ link copied' : '↗ share link'}
+            </button>
+            <button
+              className="ghost"
+              onClick={() => downloadSvg(svgRef.current, `${(text || 'text-morph').trim() || 'text-morph'}.svg`)}
+            >
+              ↓ export SVG
+            </button>
+          </div>
         </div>
 
         <p className="hint">
