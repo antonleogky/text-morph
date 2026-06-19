@@ -3,10 +3,11 @@ import MorphText from './MorphText.jsx'
 import { downloadSvg, readStateFromHash, writeStateToHash } from './share.js'
 
 const FONTS = [
-  { label: 'Oswald', value: 'Oswald, sans-serif' },
-  { label: 'Anton', value: '"Anton", sans-serif' },
-  { label: 'Cinzel', value: '"Cinzel", serif' },
   { label: 'Inter', value: '"Inter", sans-serif' },
+  { label: 'Geist', value: '"Geist", sans-serif' },
+  { label: 'IBM Plex Sans', value: '"IBM Plex Sans", sans-serif' },
+  { label: 'Google Sans', value: '"Google Sans", sans-serif' },
+  { label: 'Instrument Serif', value: '"Instrument Serif", serif' },
 ]
 
 const initial = readStateFromHash() || {}
