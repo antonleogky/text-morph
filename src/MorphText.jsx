@@ -1,42 +1,34 @@
 import { useEffect, useState } from 'react'
-import { buildLogo, renderGlyph, renderWings, SOURCE_FONTS } from './morph.js'
+import { buildMorph, glyphAt, SOURCE_FONTS } from './morph.js'
 
-const BOX = { boxW: 860, boxH: 240, cx: 500, cy: 185 }
+const BOX = { boxW: 880, boxH: 250, cx: 500, cy: 185 }
 
 /**
- * Renders `text` and morphs it from a clean, readable wordmark (t=0) into a
- * procedurally-spiked death-metal logo (t=1) as the slider drags: thorns, rakes
- * and drips grow out of the letter outlines themselves — a real geometric
- * transformation, not a font swap or a crossfade.
+ * Recreates the ravalabs.com footer wordmark: the typed text drawn in a
+ * sequence of display fonts (readable -> heavy -> death-metal) and fluidly
+ * *path-morphed* between them as the slider drags. A real glyph-outline tween,
+ * not a crossfade or a filter.
  */
-export default function MorphText({
-  text = 'HARDCORE',
-  t = 0,
-  seed = 1,
-  fontFamily = 'Inter',
-  svgRef,
-}) {
-  const [logo, setLogo] = useState(null)
+export default function MorphText({ text = 'HARDCORE', t = 0, fontFamily = 'Inter', svgRef }) {
+  const [morph, setMorph] = useState(null)
 
-  // Rebuild the spike plan only when text, source font, or seed changes;
-  // dragging the slider just re-evaluates it at a new growth amount.
+  // Rebuild the per-glyph tweens only when text or the start font changes;
+  // dragging the slider just re-evaluates them at a new position.
   useEffect(() => {
     let cancelled = false
-    buildLogo(fontFamily, text, BOX, seed)
-      .then((l) => {
-        if (!cancelled) setLogo(l)
+    buildMorph(fontFamily, text, BOX)
+      .then((m) => {
+        if (!cancelled) setMorph(m)
       })
       .catch(() => {
-        if (!cancelled) setLogo(null)
+        if (!cancelled) setMorph(null)
       })
     return () => {
       cancelled = true
     }
-  }, [text, fontFamily, seed])
+  }, [text, fontFamily])
 
-  // Ease so the lower half of the slider stays legible and the thorns really
-  // take over toward the top.
-  const amount = Math.pow(Math.min(1, Math.max(0, t)), 1.25)
+  const pos = Math.min(1, Math.max(0, t))
   const cssFamily = (SOURCE_FONTS[fontFamily] ?? SOURCE_FONTS.Inter).css
 
   return (
@@ -48,15 +40,15 @@ export default function MorphText({
       role="img"
       aria-label={text}
     >
-      {logo ? (
+      {morph ? (
         <g fill="currentColor" fillRule="nonzero">
-          {logo.wings?.length ? <path d={renderWings(logo.wings, amount, logo.inflate)} /> : null}
-          {logo.glyphs.map((glyph, i) => (
-            <path key={i} d={renderGlyph(glyph, amount, logo.inflate)} />
-          ))}
+          {morph.glyphs.map((glyph, i) => {
+            const d = glyphAt(glyph, morph.segments, pos)
+            return d ? <path key={i} d={d} /> : null
+          })}
         </g>
       ) : (
-        // Fallback while the font loads: plain readable text, no flash.
+        // Fallback while the fonts load: plain readable text, no flash.
         <text
           x={BOX.cx}
           y={BOX.cy}

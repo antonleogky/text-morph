@@ -13,6 +13,7 @@
     "@fontsource-variable/geist": "^5.2.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "flubber": "^0.4.2",
     "lucide-react": "^1.21.0",
     "opentype.js": "^2.0.0",
     "radix-ui": "^1.6.0",
