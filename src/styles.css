@@ -5,15 +5,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* The death-metal target typeface (Sagerange) the readable text morphs into. */
-@font-face {
-  font-family: 'Sagerange';
-  src: url('./fonts/Sagerange.otf') format('opentype');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

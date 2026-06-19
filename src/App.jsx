@@ -14,12 +14,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+// Values are the source-font keys the morph engine knows (see morph.js).
 const FONTS = [
-  { label: 'Inter', value: '"Inter", sans-serif' },
-  { label: 'Geist', value: '"Geist", sans-serif' },
-  { label: 'IBM Plex Sans', value: '"IBM Plex Sans", sans-serif' },
-  { label: 'Google Sans', value: '"Google Sans", sans-serif' },
-  { label: 'Instrument Serif', value: '"Instrument Serif", serif' },
+  { label: 'Inter', value: 'Inter' },
+  { label: 'Geist', value: 'Geist' },
+  { label: 'IBM Plex Sans', value: 'IBM Plex Sans' },
+  { label: 'Google Sans', value: 'Google Sans' },
+  { label: 'Instrument Serif', value: 'Instrument Serif' },
 ]
 
 const initial = readStateFromHash() || {}
