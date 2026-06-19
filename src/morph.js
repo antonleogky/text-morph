@@ -1,21 +1,23 @@
-// Procedural death-metal logo engine.
+// Wordmark morph engine — the ravalabs.com footer technique.
 //
-// Takes the readable letter outlines and *grows* the genre's signature spikes
-// out of their edges — calibrated thorns, upward rakes, and downward drips —
-// the way death-metal logos are actually built (gothic letterforms pushed to
-// their limits with serrations and spikes). At brutality 0 the outline is the
-// clean letter; as it rises, every thorn extends from zero, so it's a true
-// geometric morph that stays readable low and turns brutal/illegible high.
+// The ravalabs footer wordmark is the same text drawn as SVG paths in several
+// different display typefaces, fluidly *path-morphed* from one to the next.
+// We do exactly that for arbitrary typed text: render each letter's outline in
+// a sequence of fonts (your readable font -> a heavy display face -> a
+// death-metal face) and tween the glyph paths with flubber as the slider drags.
 
 import { parse as parseFont } from 'opentype.js'
+import { interpolate, toCircle, fromCircle, splitPathString } from 'flubber'
 
 import InterUrl from './fonts/Inter.woff?url'
 import GeistUrl from './fonts/Geist.woff?url'
 import IBMPlexSansUrl from './fonts/IBMPlexSans.woff?url'
 import GoogleSansUrl from './fonts/GoogleSans.ttf?url'
 import InstrumentSerifUrl from './fonts/InstrumentSerif.woff?url'
+import AntonUrl from './fonts/Anton.woff?url'
+import MetalManiaUrl from './fonts/MetalMania.woff?url'
 
-// The readable base fonts the spikes grow out of (key -> file + CSS family).
+// Readable starting faces the user can pick (key -> file + CSS family).
 export const SOURCE_FONTS = {
   Inter: { url: InterUrl, css: '"Inter", sans-serif' },
   Geist: { url: GeistUrl, css: '"Geist", sans-serif' },
@@ -24,17 +26,10 @@ export const SOURCE_FONTS = {
   'Instrument Serif': { url: InstrumentSerifUrl, css: '"Instrument Serif", serif' },
 }
 
-// Deterministic PRNG so a given seed always grows the same thorns.
-function mulberry32(seed) {
-  let a = seed >>> 0
-  return function () {
-    a |= 0
-    a = (a + 0x6d2b79f5) | 0
-    let x = Math.imul(a ^ (a >>> 15), 1 | a)
-    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x
-    return ((x ^ (x >>> 14)) >>> 0) / 4294967296
-  }
-}
+// The morph runs: chosen font -> Anton (heavy) -> Metal Mania (death-metal).
+const STAGE_URLS = [AntonUrl, MetalManiaUrl]
+
+const flubberOpts = { maxSegmentLength: 18 }
 
 const fontCache = new Map()
 function loadFont(url) {
@@ -49,107 +44,78 @@ function loadFont(url) {
   return fontCache.get(url)
 }
 
-// Flatten an opentype path into closed contours of {x, y} points.
-function flattenPath(path) {
-  const contours = []
-  let cur = null
-  let x0 = 0
-  let y0 = 0
-
-  const sampleQuad = (cx, cy, ex, ey, steps) => {
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps
-      const u = 1 - t
-      cur.push({
-        x: u * u * x0 + 2 * u * t * cx + t * t * ex,
-        y: u * u * y0 + 2 * u * t * cy + t * t * ey,
-      })
+// Approx center + area of a single contour, read straight off the path numbers
+// (every M/L/C/Q coordinate is an x,y pair). Used to rank and collapse contours.
+function contourInfo(d) {
+  const nums = d.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi)
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  if (nums) {
+    for (let i = 0; i + 1 < nums.length; i += 2) {
+      const x = +nums[i]
+      const y = +nums[i + 1]
+      if (x < minX) minX = x
+      if (x > maxX) maxX = x
+      if (y < minY) minY = y
+      if (y > maxY) maxY = y
     }
   }
-  const sampleCubic = (c1x, c1y, c2x, c2y, ex, ey, steps) => {
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps
-      const u = 1 - t
-      cur.push({
-        x: u * u * u * x0 + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * ex,
-        y: u * u * u * y0 + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t * t * t * ey,
-      })
+  return {
+    cx: (minX + maxX) / 2,
+    cy: (minY + maxY) / 2,
+    area: Math.max(0, maxX - minX) * Math.max(0, maxY - minY),
+  }
+}
+
+const isEmpty = (d) => !d || !d.trim()
+
+// Build a tween between one glyph's outline in font A and font B. Glyphs are
+// compound paths (an "O" has a counter; a death-metal glyph has many pieces),
+// so split into contours, pair them biggest-to-biggest, and grow/collapse any
+// leftover contours from/to a point so mismatched counts still morph smoothly.
+function buildGlyphTween(srcD, dstD) {
+  if (isEmpty(srcD) && isEmpty(dstD)) return () => ''
+  if (isEmpty(srcD)) {
+    const fns = splitPathString(dstD).map((c) => {
+      const b = contourInfo(c)
+      return fromCircle(b.cx, b.cy, 0.1, c, flubberOpts)
+    })
+    return (tt) => fns.map((f) => f(tt)).join(' ')
+  }
+  if (isEmpty(dstD)) {
+    const fns = splitPathString(srcD).map((c) => {
+      const b = contourInfo(c)
+      return toCircle(c, b.cx, b.cy, 0.1, flubberOpts)
+    })
+    return (tt) => fns.map((f) => f(tt)).join(' ')
+  }
+  const src = splitPathString(srcD).sort((a, b) => contourInfo(b).area - contourInfo(a).area)
+  const dst = splitPathString(dstD).sort((a, b) => contourInfo(b).area - contourInfo(a).area)
+  const n = Math.max(src.length, dst.length)
+  const fns = []
+  for (let i = 0; i < n; i++) {
+    const a = src[i]
+    const b = dst[i]
+    if (a && b) {
+      fns.push(interpolate(a, b, flubberOpts))
+    } else if (a) {
+      const c = contourInfo(a)
+      fns.push(toCircle(a, c.cx, c.cy, 0.1, flubberOpts))
+    } else {
+      const c = contourInfo(b)
+      fns.push(fromCircle(c.cx, c.cy, 0.1, b, flubberOpts))
     }
   }
-
-  for (const cmd of path.commands) {
-    if (cmd.type === 'M') {
-      cur = [{ x: cmd.x, y: cmd.y }]
-      contours.push(cur)
-      x0 = cmd.x
-      y0 = cmd.y
-    } else if (cmd.type === 'L') {
-      cur.push({ x: cmd.x, y: cmd.y })
-      x0 = cmd.x
-      y0 = cmd.y
-    } else if (cmd.type === 'Q') {
-      sampleQuad(cmd.x1, cmd.y1, cmd.x, cmd.y, 10)
-      x0 = cmd.x
-      y0 = cmd.y
-    } else if (cmd.type === 'C') {
-      sampleCubic(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.x, cmd.y, 12)
-      x0 = cmd.x
-      y0 = cmd.y
-    }
-    // 'Z' just closes; contour is already its own loop
-  }
-  return contours.filter((c) => c.length >= 3)
+  return (tt) => fns.map((f) => f(tt)).join(' ')
 }
 
-// Walk a closed contour and drop points at a roughly uniform spacing, so the
-// thorns end up evenly distributed regardless of the font's point density.
-function resampleClosed(pts, spacing) {
-  const out = []
-  let carry = 0
-  for (let i = 0; i < pts.length; i++) {
-    const a = pts[i]
-    const b = pts[(i + 1) % pts.length]
-    let dx = b.x - a.x
-    let dy = b.y - a.y
-    const len = Math.hypot(dx, dy)
-    if (len < 1e-6) continue
-    dx /= len
-    dy /= len
-    let d = carry
-    while (d < len) {
-      out.push({ x: a.x + dx * d, y: a.y + dy * d })
-      d += spacing
-    }
-    carry = d - len
-  }
-  return out.length >= 3 ? out : pts
-}
-
-const centroidOf = (pts) => {
-  let cx = 0
-  let cy = 0
-  for (const p of pts) {
-    cx += p.x
-    cy += p.y
-  }
-  return { x: cx / pts.length, y: cy / pts.length }
-}
-
-// Signed area of a closed contour (shoelace); magnitude ranks outer vs. counter.
-const shoelace = (pts) => {
-  let sum = 0
-  for (let i = 0; i < pts.length; i++) {
-    const a = pts[i]
-    const b = pts[(i + 1) % pts.length]
-    sum += a.x * b.y - b.x * a.y
-  }
-  return sum / 2
-}
-
-// Lay the word out centered + scaled to fit the box, returning each glyph's
-// opentype Path. Char-by-char (charToGlyph) avoids opentype's GSUB/Bidi engine,
-// which throws on some display fonts.
-function layoutGlyphs(font, text, { boxW, boxH, cx, cy }) {
+// Lay a word out centered + scaled to fit the box, one compound path per
+// character. charToGlyph avoids opentype's GSUB/Bidi engine (which throws on
+// display fonts) and gives exactly one glyph per character so every font's
+// layout aligns index-for-index.
+function layoutWord(font, text, { boxW, boxH, cx, cy }) {
   const base = 100
   const unitScale = base / font.unitsPerEm
   const chars = Array.from(text)
@@ -176,227 +142,49 @@ function layoutGlyphs(font, text, { boxW, boxH, cx, cy }) {
   const w = maxX - minX || 1
   const h = maxY - minY || 1
   const scale = Math.min(boxW / w, boxH / h)
-  const fontSize = base * scale
-  const offX = cx - ((minX + maxX) / 2) * scale
-  const offY = cy - ((minY + maxY) / 2) * scale
+  // Round the size + offsets to integers: opentype.js can emit NaN coordinates
+  // for some glyphs at certain fractional font sizes, and integer sizes dodge
+  // it entirely.
+  const fontSize = Math.round(base * scale)
+  const offX = Math.round(cx - ((minX + maxX) / 2) * scale)
+  const offY = Math.round(cy - ((minY + maxY) / 2) * scale)
 
-  return {
-    fontSize,
-    paths: placed.map(({ glyph, x }) => glyph.getPath(x * scale + offX, offY, fontSize)),
-  }
+  return placed.map(({ glyph, x }) => {
+    const d = glyph.getPath(Math.round(x * scale) + offX, offY, fontSize).toPathData(2)
+    return d.includes('NaN') ? '' : d
+  })
 }
 
 /**
- * Build the death-metal plan for `text` in source font `fontKey`. Async (the
- * font is fetched). Returns:
- *   - glyphs:  each with its body contours (for the heavier letter mass) and a
- *              list of curved tendril spikes raking off the silhouette
- *   - wings:   big mirrored tendril fans flanking the first and last letters
- *   - inflate: how much the body thickens at full brutality
- * Spikes/wings are described once; rendering just scales them by `amount`, so
- * dragging the slider grows the whole logo smoothly and reversibly.
+ * Build the wordmark morph for `text` starting from source font `fontKey`.
+ * Async (fonts are fetched). Returns { glyphs, stages } where each glyph holds
+ * its exact outline in every stage font plus a flubber tween per segment.
  */
-export async function buildLogo(fontKey, text, box, seed) {
-  const source = SOURCE_FONTS[fontKey] ?? SOURCE_FONTS.Inter
-  const font = await loadFont(source.url)
-  const { fontSize, paths } = layoutGlyphs(font, text, box)
+export async function buildMorph(fontKey, text, box) {
+  const start = SOURCE_FONTS[fontKey] ?? SOURCE_FONTS.Inter
+  const urls = [start.url, ...STAGE_URLS]
+  const fonts = await Promise.all(urls.map(loadFont))
+  const layouts = fonts.map((f) => layoutWord(f, text, box))
+  const count = Math.max(...layouts.map((l) => l.length))
+  const segments = urls.length - 1
 
-  const rnd = mulberry32((seed || 1) * 0x9e3779b1)
-  const spacing = fontSize * 0.05
-  const inflate = fontSize * 0.075 // heavier letter mass, but letters stay apart
-  const maxThorn = fontSize * 0.95
-  const baseW = fontSize * 0.055
-  const spikeGap = fontSize * 0.13 // arc distance between thorns — deliberate, not dense
-
-  // Flatten + resample every glyph, find its outer silhouette, and the word's
-  // overall bounds + far-left/right anchor points (where the wings attach).
-  let minX = Infinity
-  let maxX = -Infinity
-  let minY = Infinity
-  let maxY = -Infinity
-  let leftA = null
-  let rightA = null
-  const prepared = paths.map((path) => {
-    const contours = flattenPath(path).map((raw) => resampleClosed(raw, spacing))
-    let outer = 0
-    let outerArea = -1
-    contours.forEach((pts, ci) => {
-      const a = Math.abs(shoelace(pts))
-      if (a > outerArea) {
-        outerArea = a
-        outer = ci
-      }
-      for (const p of pts) {
-        if (p.x < minX) minX = p.x
-        if (p.x > maxX) maxX = p.x
-        if (p.y < minY) minY = p.y
-        if (p.y > maxY) maxY = p.y
-        if (!leftA || p.x < leftA.x) leftA = p
-        if (!rightA || p.x > rightA.x) rightA = p
-      }
-    })
-    return { contours, outer }
-  })
-
-  const midY = (minY + maxY) / 2
-  const halfH = (maxY - minY) / 2 || 1
-
-  const glyphs = prepared.map(({ contours, outer }) => {
-    const bodyContours = contours.map((pts) => {
-      const c = centroidOf(pts)
-      const n = pts.length
-      return pts.map((p, i) => {
-        const prev = pts[(i - 1 + n) % n]
-        const next = pts[(i + 1) % n]
-        let nx = next.y - prev.y
-        let ny = -(next.x - prev.x)
-        const nl = Math.hypot(nx, ny) || 1
-        nx /= nl
-        ny /= nl
-        if (nx * (p.x - c.x) + ny * (p.y - c.y) < 0) {
-          nx = -nx
-          ny = -ny
-        }
-        return { x: p.x, y: p.y, nx, ny }
-      })
-    })
-
-    // Thorns rise off the outer silhouette, spaced out by arc length, favouring
-    // the top and bottom edges (rakes + drips) over the vertical sides.
-    const pts = contours[outer]
-    const c = centroidOf(pts)
-    const n = pts.length
-    const spikes = []
-    let acc = spikeGap
-    for (let i = 0; i < n; i++) {
-      const p = pts[i]
-      const prev = pts[(i - 1 + n) % n]
-      const next = pts[(i + 1) % n]
-      acc += Math.hypot(p.x - prev.x, p.y - prev.y)
-
-      let nx = next.y - prev.y
-      let ny = -(next.x - prev.x)
-      const nl = Math.hypot(nx, ny) || 1
-      nx /= nl
-      ny /= nl
-      if (nx * (p.x - c.x) + ny * (p.y - c.y) < 0) {
-        nx = -nx
-        ny = -ny
-      }
-
-      const onCap = Math.abs(ny) > 0.4 // top or bottom edge
-      if (acc < spikeGap || !onCap) continue
-      acc = 0
-
-      const r = rnd()
-      const up = p.y < midY
-      // rake direction: strongly vertical away from the midline, slight lean
-      let dx = nx * 0.35
-      let dy = up ? -1 : 1
-      const dl = Math.hypot(dx, dy) || 1
-      dx /= dl
-      dy /= dl
-
-      const extreme = Math.min(1, Math.abs(p.y - midY) / halfH)
-      const len = maxThorn * (0.28 + r * r * 0.72) * (0.45 + 0.65 * extreme)
-      // curve sweeps outward from the word centre, so the two halves mirror.
-      const curve = (p.x < (minX + maxX) / 2 ? -1 : 1) * (0.12 + r * 0.22)
-      spikes.push({ x: p.x, y: p.y, nx, ny, dx, dy, len, width: baseW, curve })
-    }
-
-    return { bodyContours, spikes }
-  })
-
-  // Mirrored wing fans at the far ends — the big symmetric flourishes that read
-  // as a death-metal logo. Each is a splayed cluster of long curved tendrils.
-  const wings = []
-  const addWing = (anchor, sign) => {
-    if (!anchor) return
-    const ax = anchor.x
-    // Tendrils originate at *staggered* heights along the end of the word and
-    // all curl up-and-outward in the same direction, so the cluster reads as a
-    // swept antler/branch flourish rather than a radial starburst. The last
-    // ray is a downward drip.
-    const rays = [
-      { atY: -0.75, deg: -52, len: 1.85, w: 2.4, curve: 0.55 },
-      { atY: -0.3, deg: -34, len: 2.1, w: 2.9, curve: 0.6 }, // main sweep
-      { atY: 0.15, deg: -16, len: 1.6, w: 2.1, curve: 0.55 },
-      { atY: 0.7, deg: 52, len: 1.4, w: 1.8, curve: 0.22 }, // drip
-    ]
-    rays.forEach((ray) => {
-      const a = (ray.deg * Math.PI) / 180
-      const dx = sign * Math.cos(a)
-      const dy = Math.sin(a)
-      wings.push({
-        x: ax,
-        y: midY + ray.atY * halfH,
-        nx: dx,
-        ny: dy,
-        dx,
-        dy,
-        len: maxThorn * ray.len,
-        width: baseW * ray.w,
-        curve: sign * ray.curve, // hook outward so the antlers curl
-      })
-    })
+  const glyphs = []
+  for (let i = 0; i < count; i++) {
+    const perStage = layouts.map((l) => l[i] ?? '')
+    const tweens = []
+    for (let s = 0; s < segments; s++) tweens.push(buildGlyphTween(perStage[s], perStage[s + 1]))
+    glyphs.push({ perStage, tweens })
   }
-  addWing(leftA, -1)
-  addWing(rightA, 1)
-
-  return { glyphs, wings, inflate }
+  return { glyphs, segments }
 }
 
-// A single curved, tapering tendril, grown to `amount`. Two quadratic curves
-// sweep from a small base out to a sharp tip with a lateral hook, so it reads
-// as an organic thorn/branch rather than a straight triangle.
-function tendrilPath(s, amount, inflate) {
-  const L = s.len * amount
-  if (L < 0.5) return ''
-  const bx = s.x + s.nx * inflate * amount
-  const by = s.y + s.ny * inflate * amount
-  const w = s.width * (0.5 + 0.5 * amount)
-  // perpendicular to the thorn direction = its base orientation
-  const px = -s.dy
-  const py = s.dx
-  const blx = bx - px * w
-  const bly = by - py * w
-  const brx = bx + px * w
-  const bry = by + py * w
-  const sweep = s.curve * L
-  const tx = bx + s.dx * L + px * sweep
-  const ty = by + s.dy * L + py * sweep
-  // control points ~55% out, pulled toward the centreline to taper the tip
-  const ox = bx + s.dx * L * 0.55 + px * sweep * 0.5
-  const oy = by + s.dy * L * 0.55 + py * sweep * 0.5
-  const cw = w * 0.4
-  return (
-    `M${blx.toFixed(1)} ${bly.toFixed(1)} ` +
-    `Q${(ox - px * cw).toFixed(1)} ${(oy - py * cw).toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)} ` +
-    `Q${(ox + px * cw).toFixed(1)} ${(oy + py * cw).toFixed(1)} ${brx.toFixed(1)} ${bry.toFixed(1)} Z `
-  )
-}
-
-// Render one glyph: the (thickened) letter body plus its curved thorns.
-export function renderGlyph(glyph, amount, inflate) {
-  let d = ''
-  for (const contour of glyph.bodyContours) {
-    for (let i = 0; i < contour.length; i++) {
-      const v = contour[i]
-      const off = inflate * amount
-      d += `${i === 0 ? 'M' : 'L'}${(v.x + v.nx * off).toFixed(1)} ${(v.y + v.ny * off).toFixed(1)} `
-    }
-    d += 'Z '
-  }
-  if (amount > 0.001) {
-    for (const s of glyph.spikes) d += tendrilPath(s, amount, inflate)
-  }
-  return d
-}
-
-// Render the mirrored wing fans flanking the word.
-export function renderWings(wings, amount, inflate) {
-  if (amount <= 0.001) return ''
-  let d = ''
-  for (const s of wings) d += tendrilPath(s, amount, inflate)
-  return d
+// Evaluate one glyph's path at global morph position t (0..1) across all stages,
+// snapping to the exact font outline at the very ends and at stage boundaries.
+export function glyphAt(glyph, segments, t) {
+  if (t <= 0.0005) return glyph.perStage[0]
+  if (t >= 0.9995) return glyph.perStage[segments]
+  const x = t * segments
+  let s = Math.floor(x)
+  if (s >= segments) s = segments - 1
+  return glyph.tweens[s](x - s)
 }

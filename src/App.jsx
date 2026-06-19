@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Download, Share2, Shuffle } from 'lucide-react'
+import { Check, Download, Share2 } from 'lucide-react'
 import MorphText from './MorphText.jsx'
 import { downloadSvg, readStateFromHash, writeStateToHash } from './share.js'
 import { Button } from '@/components/ui/button'
@@ -28,7 +28,6 @@ const initial = readStateFromHash() || {}
 export default function App() {
   const [text, setText] = useState(initial.text ?? 'Metal text')
   const [brutality, setBrutality] = useState(initial.brutality ?? 0) // 0..100 -> drives the morph
-  const [seed, setSeed] = useState(initial.seed ?? 7)
   const [font, setFont] = useState(initial.font ?? FONTS[0].value)
   const [copied, setCopied] = useState(false)
   const svgRef = useRef(null)
@@ -37,8 +36,8 @@ export default function App() {
 
   // Keep the URL hash in sync so the current morph is always shareable.
   useEffect(() => {
-    writeStateToHash({ text, brutality, seed, font })
-  }, [text, brutality, seed, font])
+    writeStateToHash({ text, brutality, font })
+  }, [text, brutality, font])
 
   async function copyShareLink() {
     try {
@@ -58,7 +57,7 @@ export default function App() {
       </header>
 
       <main className="grid flex-1 place-items-center px-6 py-10">
-        <MorphText text={text || ' '} t={t} seed={seed} fontFamily={font} svgRef={svgRef} />
+        <MorphText text={text || ' '} t={t} fontFamily={font} svgRef={svgRef} />
       </main>
 
       <section className="border-t bg-card/30">
@@ -103,10 +102,6 @@ export default function App() {
             </Select>
 
             <div className="ml-auto flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => setSeed((s) => (s % 9999) + 1)}>
-                <Shuffle />
-                Randomize
-              </Button>
               <Button variant="outline" size="sm" onClick={copyShareLink}>
                 {copied ? <Check /> : <Share2 />}
                 {copied ? 'Copied' : 'Share'}

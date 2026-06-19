@@ -3,37 +3,33 @@
 **▶︎ Try it live: [antonleogky.github.io/text-morph](https://antonleogky.github.io/text-morph/)**
 
 An interactive text component that morphs **clean, readable type into a gnarly
-hardcore / death-metal band logo** as you drag a slider — inspired by the
-morphing footer wordmark on [ravalabs.com](https://www.ravalabs.com/), pushed
-toward the spiked "brutal" lettering of hardcore group artwork.
+death-metal band logo** as you drag a slider — a faithful recreation of the
+morphing footer wordmark on [ravalabs.com](https://www.ravalabs.com/).
 
-At **Brutality 0** the text is crisp and legible. As you drag toward **100**,
-sharp thorns, upward rakes and downward drips grow out of the letters
-themselves until the wordmark becomes a death-metal logo — a true geometric
-transformation, not a font swap or a crossfade.
+At **Brutality 0** the text is crisp and legible. As you drag toward **100** it
+fluidly *path-morphs* through a sequence of display typefaces and lands as a
+death-metal logotype.
 
 ## How it works
 
-The logo is built *procedurally* the way death-metal logos actually are —
-gothic letterforms pushed to their limits with calibrated spikes — rather than
-faked with filters or swapped for a spiky font. The engine lives in
-`src/morph.js`:
+The ravalabs footer wordmark is the same text drawn as SVG paths in several
+different display typefaces, fluidly tweened from one to the next. This does
+exactly that for arbitrary typed text. The engine lives in `src/morph.js`:
 
 1. **Outlines** — [opentype.js](https://github.com/opentypejs/opentype.js)
-   reads the vector outline of each letter from the selected font and flattens
-   it to evenly-spaced points.
-2. **Thorn plan** — every point on a glyph's outer silhouette gets an outward
-   normal and a seeded thorn length. Thorns *rake*: they lean away from the
-   word's midline (up on top, down into drips on the bottom), throw big
-   horizontal "wings" at the far ends, and grow longer toward the extremes —
-   which is what reads as a logo instead of a starburst.
-3. **Morph** — rendering is just `point + direction × length × amount`, where
-   `amount` rises with the slider. At 0 every thorn is zero (the clean letter);
-   toward 100 they extend, so it's a smooth, fully reversible geometric morph.
+   reads each letter's vector outline from a sequence of fonts: your chosen
+   readable face → **Anton** (heavy) → **Metal Mania** (death-metal). Layout is
+   done char-by-char (`charToGlyph`) so every font aligns letter-for-letter.
+2. **Tween** — [flubber](https://github.com/veltman/flubber) builds a path
+   interpolation between each letter's outline in consecutive fonts. Compound
+   glyphs (counters, multi-piece death-metal letters) are split into contours,
+   paired biggest-to-biggest, and any leftover pieces grow/collapse from a
+   point so mismatched shapes still morph cleanly.
+3. **Morph** — the slider drives a position across the stages; each glyph snaps
+   to the exact font outline at the ends and tweens in between, so the morph is
+   smooth and fully reversible.
 
-Because it's pure geometry, the result is crisp vector art at every step, and
-the *randomize* button reseeds the thorns. Exported SVGs are self-contained
-(plain `<path>` data, no font needed).
+Exported SVGs are self-contained `<path>` data (no font needed).
 
 ## Share & export
 
