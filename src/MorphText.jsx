@@ -1,48 +1,43 @@
-import { useId } from 'react'
+import { useEffect, useState } from 'react'
+import { buildLogo, renderGlyph, SOURCE_FONTS } from './morph.js'
 
-const lerp = (a, b, t) => a + (b - a) * t
-const clamp01 = (n) => Math.min(1, Math.max(0, n))
+const BOX = { boxW: 860, boxH: 240, cx: 500, cy: 185 }
 
 /**
- * Morphs `text` from clean & readable (t=0) into a real death-metal logotype
- * (t=1) as the slider drags. The brutal end is the genuine spiked lettering of
- * the bundled Sagerange typeface — the only way to get the sharp, thorny font
- * spikes of band logos, which pure SVG filters can't fake.
- *
- * Two layers sit centered in the same spot so the wordmark never jumps:
- *   - the readable text in the selected font, fading + blurring out
- *   - the same text in the death-metal font, fading in from a blur
- * A shared turbulence displacement warps both layers, peaking mid-drag and
- * resolving to zero at t=1 so the final logo lands crisp like the references.
+ * Renders `text` and morphs it from a clean, readable wordmark (t=0) into a
+ * procedurally-spiked death-metal logo (t=1) as the slider drags: thorns, rakes
+ * and drips grow out of the letter outlines themselves — a real geometric
+ * transformation, not a font swap or a crossfade.
  */
 export default function MorphText({
   text = 'HARDCORE',
   t = 0,
   seed = 1,
-  fontFamily = 'Inter, sans-serif',
+  fontFamily = 'Inter',
   svgRef,
 }) {
-  const rawId = useId().replace(/:/g, '')
-  const warpId = `warp-${rawId}`
+  const [logo, setLogo] = useState(null)
 
-  // Distortion is a bell curve: nothing at the clean end, chaos through the
-  // middle of the drag, then crisp again as the death-metal font resolves.
-  const bell = Math.sin(clamp01(t) * Math.PI)
-  const warpScale = bell * 20
-  const warpFreq = lerp(0.018, 0.05, t)
+  // Rebuild the spike plan only when text, source font, or seed changes;
+  // dragging the slider just re-evaluates it at a new growth amount.
+  useEffect(() => {
+    let cancelled = false
+    buildLogo(fontFamily, text, BOX, seed)
+      .then((l) => {
+        if (!cancelled) setLogo(l)
+      })
+      .catch(() => {
+        if (!cancelled) setLogo(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [text, fontFamily, seed])
 
-  // Complementary crossfade through the [a, b] handoff window: the two layers'
-  // opacities always sum to 1, so brightness stays constant (no dim, foggy
-  // double-exposure) while the shared warp scrambles both into the morph.
-  // Below a it's pure readable text; above b it's the pure death-metal font
-  // resolving from warped to crisp as the displacement falls back to zero.
-  const a = 0.28
-  const b = 0.62
-  const blend = clamp01((t - a) / (b - a))
-  const readable = 1 - blend
-  const metal = blend
-  const readableBlur = (1 - readable) * 1.5
-  const metalBlur = (1 - metal) * 2.5
+  // Ease so the lower half of the slider stays legible and the thorns really
+  // take over toward the top.
+  const amount = Math.pow(Math.min(1, Math.max(0, t)), 1.25)
+  const cssFamily = (SOURCE_FONTS[fontFamily] ?? SOURCE_FONTS.Inter).css
 
   return (
     <svg
@@ -53,67 +48,24 @@ export default function MorphText({
       role="img"
       aria-label={text}
     >
-      <defs>
-        <filter
-          id={warpId}
-          x="-60%"
-          y="-70%"
-          width="220%"
-          height="240%"
-          primitiveUnits="userSpaceOnUse"
-          colorInterpolationFilters="sRGB"
+      {logo ? (
+        <g fill="currentColor" fillRule="nonzero">
+          {logo.glyphs.map((glyph, i) => (
+            <path key={i} d={renderGlyph(glyph, amount, logo.inflate)} />
+          ))}
+        </g>
+      ) : (
+        // Fallback while the font loads: plain readable text, no flash.
+        <text
+          x={BOX.cx}
+          y={BOX.cy}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          style={{ fontFamily: cssFamily, fontWeight: 600, fontSize: 150, fill: 'currentColor' }}
         >
-          <feTurbulence
-            type="turbulence"
-            baseFrequency={warpFreq}
-            numOctaves="3"
-            seed={seed}
-            result="noise"
-          />
-          <feDisplacementMap
-            in="SourceGraphic"
-            in2="noise"
-            scale={warpScale}
-            xChannelSelector="R"
-            yChannelSelector="G"
-          />
-        </filter>
-      </defs>
-
-      {/* readable base, fading + blurring out */}
-      <text
-        x="500"
-        y="185"
-        textAnchor="middle"
-        dominantBaseline="middle"
-        style={{
-          fontFamily,
-          fontWeight: 600,
-          fontSize: 150,
-          fill: 'currentColor',
-          opacity: readable,
-          filter: `url(#${warpId}) blur(${readableBlur}px)`,
-        }}
-      >
-        {text}
-      </text>
-
-      {/* death-metal logotype, resolving in from a blur */}
-      <text
-        x="500"
-        y="185"
-        textAnchor="middle"
-        dominantBaseline="middle"
-        style={{
-          fontFamily: '"Sagerange", sans-serif',
-          fontSize: 150,
-          fill: 'currentColor',
-          opacity: metal,
-          filter: `url(#${warpId}) blur(${metalBlur}px)`,
-        }}
-      >
-        {text}
-      </text>
+          {text}
+        </text>
+      )}
     </svg>
   )
 }
