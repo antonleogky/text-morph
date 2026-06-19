@@ -6,27 +6,25 @@ morphing footer wordmark on [ravalabs.com](https://www.ravalabs.com/), pushed
 toward the spiked "brutal" lettering of hardcore group artwork.
 
 At **Brutality 0** the text is crisp and legible. As you drag toward **100**,
-the *same glyphs* stay in place and grow thorns, warp, and thicken — a true
-geometric morph rather than a crossfade between two fonts.
+the wordmark stays centered in place and resolves into a real death-metal
+logotype with the sharp, thorny font spikes of band artwork.
 
 ## How it works
 
-It's pure SVG filters on a single `<text>` element (`src/MorphText.jsx`).
-Four stacked displacement passes plus an alpha crush build the extreme-metal
-aesthetic — tangled thorny branches, sharp spikes, calcified bone texture:
+Pure SVG filters can warp and erode text, but they can't conjure the sharp,
+designed spikes of a death-metal typeface — so the brutal end is the genuine
+article: the bundled **Sagerange** display font (`src/fonts/`).
+`src/MorphText.jsx` stacks two `<text>` layers in the same centered spot:
 
-- **`feMorphology` dilate** fuses strokes into a heavy, calcified weight so the
-  spikes stay connected to the mass instead of scattering into grain
-- **coarse turbulence displacement** warps the overall silhouette
-- **low-frequency displacement** bends whole strokes into thorny branches
-- **low-frequency, high-amplitude displacement** pulls the edges out into long,
-  sharp, connected spikes
-- **`feComponentTransfer` alpha crush** snaps the soft edges into crisp,
-  high-contrast vector spikes (white on solid black)
-- **per-glyph `rotate`** adds the chaotic tilt of band logos
+- the readable text in the selected font
+- the same text in the death-metal font
 
-Every parameter is interpolated from one slider value, so the morph is smooth
-and fully reversible. A *randomize* button reseeds the noise.
+A **complementary crossfade** hands one layer off to the other — their
+opacities always sum to 1, so brightness stays constant through the middle
+instead of dimming into a foggy double-exposure. A shared **`feTurbulence` +
+`feDisplacementMap` warp** distorts both layers on a bell curve: zero at the
+clean end, chaos through the middle of the drag, then back to zero at the top
+so the final logo lands crisp. A *randomize* button reseeds the noise.
 
 ## Share & export
 
