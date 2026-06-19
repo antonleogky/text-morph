@@ -12,7 +12,7 @@ const FONTS = [
 const initial = readStateFromHash() || {}
 
 export default function App() {
-  const [text, setText] = useState(initial.text ?? 'RAVA LABS')
+  const [text, setText] = useState(initial.text ?? 'Metal text')
   const [brutality, setBrutality] = useState(initial.brutality ?? 0) // 0..100 -> drives the morph
   const [seed, setSeed] = useState(initial.seed ?? 7)
   const [font, setFont] = useState(initial.font ?? FONTS[0].value)
