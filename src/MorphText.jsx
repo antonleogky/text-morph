@@ -82,7 +82,7 @@ export default function MorphText({
   return (
     <svg
       ref={svgRef}
-      className="morph-svg text-neutral-50"
+      className="morph-svg text-foreground"
       viewBox="0 0 1000 320"
       preserveAspectRatio="xMidYMid meet"
       role="img"
