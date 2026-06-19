@@ -11,15 +11,22 @@ geometric morph rather than a crossfade between two fonts.
 
 ## How it works
 
-It's pure SVG filters on a single `<text>` element (`src/MorphText.jsx`):
+It's pure SVG filters on a single `<text>` element (`src/MorphText.jsx`).
+Four stacked displacement passes plus an alpha crush build the extreme-metal
+aesthetic — tangled thorny branches, sharp spikes, calcified bone texture:
 
+- **`feMorphology` dilate** fuses strokes into a heavy, calcified weight so the
+  spikes stay connected to the mass instead of scattering into grain
 - **coarse turbulence displacement** warps the overall silhouette
-- **fine high-frequency displacement** grows the thorny spikes
-- **`feMorphology` dilate** thickens strokes into a heavy metal weight
+- **low-frequency displacement** bends whole strokes into thorny branches
+- **low-frequency, high-amplitude displacement** pulls the edges out into long,
+  sharp, connected spikes
+- **`feComponentTransfer` alpha crush** snaps the soft edges into crisp,
+  high-contrast vector spikes (white on solid black)
 - **per-glyph `rotate`** adds the chaotic tilt of band logos
 
 Every parameter is interpolated from one slider value, so the morph is smooth
-and fully reversible. A *randomize spikes* button reseeds the noise.
+and fully reversible. A *randomize* button reseeds the noise.
 
 ## Share & export
 
