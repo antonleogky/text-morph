@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { buildLogo, renderGlyph, SOURCE_FONTS } from './morph.js'
+import { buildLogo, renderGlyph, renderWings, SOURCE_FONTS } from './morph.js'
 
 const BOX = { boxW: 860, boxH: 240, cx: 500, cy: 185 }
 
@@ -50,6 +50,7 @@ export default function MorphText({
     >
       {logo ? (
         <g fill="currentColor" fillRule="nonzero">
+          {logo.wings?.length ? <path d={renderWings(logo.wings, amount, logo.inflate)} /> : null}
           {logo.glyphs.map((glyph, i) => (
             <path key={i} d={renderGlyph(glyph, amount, logo.inflate)} />
           ))}
