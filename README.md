@@ -1,5 +1,7 @@
 # text-morph
 
+**▶︎ Try it live: [antonleogky.github.io/text-morph](https://antonleogky.github.io/text-morph/)**
+
 An interactive text component that morphs **clean, readable type into a gnarly
 hardcore / death-metal band logo** as you drag a slider — inspired by the
 morphing footer wordmark on [ravalabs.com](https://www.ravalabs.com/), pushed
