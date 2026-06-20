@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { buildMorph, glyphAt, SOURCE_FONTS } from './morph.js'
+import { buildMorph, glyphFrame, SOURCE_FONTS } from './morph.js'
 
 const BOX = { boxW: 880, boxH: 250, cx: 500, cy: 185 }
 
@@ -43,7 +43,7 @@ export default function MorphText({ text = 'HARDCORE', t = 0, fontFamily = 'Inte
       {morph ? (
         <g fill="currentColor" fillRule="nonzero">
           {morph.glyphs.map((glyph, i) => {
-            const d = glyphAt(glyph, morph.segments, pos)
+            const d = glyphFrame(glyph, morph.frames, pos)
             return d ? <path key={i} d={d} /> : null
           })}
         </g>
