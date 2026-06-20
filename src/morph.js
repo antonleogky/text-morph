@@ -1,10 +1,10 @@
 // Wordmark morph engine — the ravalabs.com footer technique.
 //
-// The ravalabs footer wordmark is the same text drawn as SVG paths in several
-// different display typefaces, fluidly *path-morphed* from one to the next.
-// We do exactly that for arbitrary typed text: render each letter's outline in
-// a sequence of fonts (your readable font -> a heavy display face -> a
-// death-metal face) and tween the glyph paths with flubber as the slider drags.
+// The text is drawn as glyph outlines in a readable font and in a death-metal
+// font, and flubber path-tweens between them. To keep scrubbing perfectly
+// smooth no matter how complex the target font is, the tween is sampled into a
+// fixed set of frames once per text/font change; dragging the slider is then
+// just an O(1) frame lookup, so the morph flows the whole length of the slider.
 
 import { parse as parseFont } from 'opentype.js'
 import { interpolate, toCircle, fromCircle, splitPathString } from 'flubber'
@@ -14,7 +14,6 @@ import GeistUrl from './fonts/Geist.woff?url'
 import IBMPlexSansUrl from './fonts/IBMPlexSans.woff?url'
 import GoogleSansUrl from './fonts/GoogleSans.ttf?url'
 import InstrumentSerifUrl from './fonts/InstrumentSerif.woff?url'
-import AntonUrl from './fonts/Anton.woff?url'
 import MetalManiaUrl from './fonts/MetalMania.woff?url'
 
 // Readable starting faces the user can pick (key -> file + CSS family).
@@ -26,10 +25,12 @@ export const SOURCE_FONTS = {
   'Instrument Serif': { url: InstrumentSerifUrl, css: '"Instrument Serif", serif' },
 }
 
-// The morph runs: chosen font -> Anton (heavy) -> Metal Mania (death-metal).
-const STAGE_URLS = [AntonUrl, MetalManiaUrl]
+// The death-metal face the text morphs into. (Swappable — e.g. Death Mohawk /
+// Zeus Borne once their files are in src/fonts.)
+const TARGET_URL = MetalManiaUrl
 
-const flubberOpts = { maxSegmentLength: 18 }
+const FRAMES = 44
+const flubberOpts = { maxSegmentLength: 20 }
 
 const fontCache = new Map()
 function loadFont(url) {
@@ -44,7 +45,7 @@ function loadFont(url) {
   return fontCache.get(url)
 }
 
-// Approx center + area of a single contour, read straight off the path numbers
+// Approx center + area of one contour, read straight off the path numbers
 // (every M/L/C/Q coordinate is an x,y pair). Used to rank and collapse contours.
 function contourInfo(d) {
   const nums = d.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi)
@@ -113,8 +114,9 @@ function buildGlyphTween(srcD, dstD) {
 
 // Lay a word out centered + scaled to fit the box, one compound path per
 // character. charToGlyph avoids opentype's GSUB/Bidi engine (which throws on
-// display fonts) and gives exactly one glyph per character so every font's
-// layout aligns index-for-index.
+// display fonts), gives exactly one glyph per character so the two fonts align
+// index-for-index, and integer size/offsets dodge an opentype NaN bug at some
+// fractional sizes.
 function layoutWord(font, text, { boxW, boxH, cx, cy }) {
   const base = 100
   const unitScale = base / font.unitsPerEm
@@ -142,9 +144,6 @@ function layoutWord(font, text, { boxW, boxH, cx, cy }) {
   const w = maxX - minX || 1
   const h = maxY - minY || 1
   const scale = Math.min(boxW / w, boxH / h)
-  // Round the size + offsets to integers: opentype.js can emit NaN coordinates
-  // for some glyphs at certain fractional font sizes, and integer sizes dodge
-  // it entirely.
   const fontSize = Math.round(base * scale)
   const offX = Math.round(cx - ((minX + maxX) / 2) * scale)
   const offY = Math.round(cy - ((minY + maxY) / 2) * scale)
@@ -156,35 +155,35 @@ function layoutWord(font, text, { boxW, boxH, cx, cy }) {
 }
 
 /**
- * Build the wordmark morph for `text` starting from source font `fontKey`.
- * Async (fonts are fetched). Returns { glyphs, stages } where each glyph holds
- * its exact outline in every stage font plus a flubber tween per segment.
+ * Build the wordmark morph for `text` from source font `fontKey` into the
+ * death-metal target. Async (fonts fetched). Each glyph is pre-sampled into
+ * `FRAMES` path strings spanning clean (0) -> brutal (1), with the exact font
+ * outlines pinned at the ends.
  */
 export async function buildMorph(fontKey, text, box) {
   const start = SOURCE_FONTS[fontKey] ?? SOURCE_FONTS.Inter
-  const urls = [start.url, ...STAGE_URLS]
-  const fonts = await Promise.all(urls.map(loadFont))
-  const layouts = fonts.map((f) => layoutWord(f, text, box))
-  const count = Math.max(...layouts.map((l) => l.length))
-  const segments = urls.length - 1
+  const [srcFont, dstFont] = await Promise.all([loadFont(start.url), loadFont(TARGET_URL)])
+  const srcLayout = layoutWord(srcFont, text, box)
+  const dstLayout = layoutWord(dstFont, text, box)
+  const count = Math.max(srcLayout.length, dstLayout.length)
 
   const glyphs = []
   for (let i = 0; i < count; i++) {
-    const perStage = layouts.map((l) => l[i] ?? '')
-    const tweens = []
-    for (let s = 0; s < segments; s++) tweens.push(buildGlyphTween(perStage[s], perStage[s + 1]))
-    glyphs.push({ perStage, tweens })
+    const a = srcLayout[i] ?? ''
+    const b = dstLayout[i] ?? ''
+    const tween = buildGlyphTween(a, b)
+    const frames = new Array(FRAMES)
+    frames[0] = a
+    frames[FRAMES - 1] = b
+    for (let k = 1; k < FRAMES - 1; k++) frames[k] = tween(k / (FRAMES - 1))
+    glyphs.push({ frames })
   }
-  return { glyphs, segments }
+  return { glyphs, frames: FRAMES }
 }
 
-// Evaluate one glyph's path at global morph position t (0..1) across all stages,
-// snapping to the exact font outline at the very ends and at stage boundaries.
-export function glyphAt(glyph, segments, t) {
-  if (t <= 0.0005) return glyph.perStage[0]
-  if (t >= 0.9995) return glyph.perStage[segments]
-  const x = t * segments
-  let s = Math.floor(x)
-  if (s >= segments) s = segments - 1
-  return glyph.tweens[s](x - s)
+// Pick the precomputed frame nearest morph position t (0..1) — an O(1) lookup,
+// so scrubbing the slider is always smooth.
+export function glyphFrame(glyph, frames, t) {
+  const i = Math.max(0, Math.min(frames - 1, Math.round(t * (frames - 1))))
+  return glyph.frames[i]
 }
